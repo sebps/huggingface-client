@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/sebps/huggingface-client/client"
@@ -32,6 +33,9 @@ var (
 	inferenceMinReplica   int
 	inferenceMaxReplica   int
 	logsReplicaID         string
+	startTime             string
+	stopTime              string
+	metricStep            string
 )
 
 func init() {
@@ -288,7 +292,7 @@ func init() {
 				return nil
 			}
 
-			printJSON(logs)
+			fmt.Println(string(logs))
 
 			return nil
 		},
@@ -332,21 +336,41 @@ func init() {
 
 	getMetricsCmd := &cobra.Command{
 		Use:   "metrics [name]",
-		Short: "Get endpoint metric (hardwareUsage or pendingRequests)",
-		Args:  cobra.ExactArgs(2),
+		Short: "List endpoint metrics (hardwareUsage or pendingRequests)",
+		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if startTime == "" || stopTime == "" {
+				return fmt.Errorf("both --start and --stop must be specified")
+			}
+
+			startTime, err := utils.ParseTime(startTime)
+			if err != nil {
+				return fmt.Errorf("invalid --start time format : %w", err)
+			}
+
+			stopTime, err := utils.ParseTime(stopTime)
+			if err != nil {
+				return fmt.Errorf("invalid --stop time format : %w", err)
+			}
+
 			c, err := client.NewClient(&host, &token)
 			if err != nil {
 				return err
 			}
 
-			metricData, err := c.GetEndpointMetrics(namespace, args[0])
-			if err != nil {
-				fmt.Println(err)
-				return nil
+			payload := client.MetricsRequest{
+				Start: startTime,
+				Stop:  stopTime,
 			}
 
-			printJSON(metricData)
+			metricsData, err := c.GetEndpointMetrics(namespace, args[0], payload)
+			if err != nil {
+				return err
+			}
+
+			fmt.Println(string(metricsData))
+
+			printJSON(metricsData)
 
 			return nil
 		},
@@ -354,21 +378,47 @@ func init() {
 
 	getMetricCmd := &cobra.Command{
 		Use:   "metric [name] [metric]",
-		Short: "Get endpoint metric (hardwareUsage or pendingRequests)",
-		Args:  cobra.ExactArgs(2),
+		Short: "Get endpoint specific metric, metric argument can be one of the following values : `pending-requests`, `request-count`, `median-latency`, `p95-latency`, `success-throughput`, `bad-request-throughput`, `server-error-throughput`, `cpu-usage`, `memory-usage`, `gpu-usage`, `gpu-memory-usage`, `neuron-usage`, `neuron-memory-usage`, `ready-replicas`, `running-replicas`, `target-replicas`, `average-latency`, `success-rate`, `bad-request-rate`, `server-error-rate`",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if startTime == "" || stopTime == "" {
+				return fmt.Errorf("both --start and --stop must be specified")
+			}
+
+			startTime, err := utils.ParseTime(startTime)
+			if err != nil {
+				return fmt.Errorf("invalid --start time format : %w", err)
+			}
+
+			stopTime, err := utils.ParseTime(stopTime)
+			if err != nil {
+				return fmt.Errorf("invalid --stop time format : %w", err)
+			}
+
 			c, err := client.NewClient(&host, &token)
 			if err != nil {
 				return err
 			}
 
-			metricData, err := c.GetEndpointMetric(namespace, args[0], args[1])
+			payload := client.MetricRequest{
+				From: uint32(startTime.Unix()),
+				To:   uint32(stopTime.Unix()),
+			}
+
+			if metricStep != "" {
+				payload.Step = &metricStep
+			}
+
+			if !utils.IsMetricValid(args[1]) {
+				return errors.New("invalid metric. metric needs to be one of the following values : `pending-requests`, `request-count`, `median-latency`, `p95-latency`, `success-throughput`, `bad-request-throughput`, `server-error-throughput`, `cpu-usage`, `memory-usage`, `gpu-usage`, `gpu-memory-usage`, `neuron-usage`, `neuron-memory-usage`, `ready-replicas`, `running-replicas`, `target-replicas`, `average-latency`, `success-rate`, `bad-request-rate`, `server-error-rate`")
+			}
+
+			metricData, err := c.GetEndpointMetric(namespace, args[0], args[1], payload)
 			if err != nil {
 				fmt.Println(err)
 				return nil
 			}
 
-			printJSON(metricData)
+			fmt.Println(string(metricData))
 
 			return nil
 		},
@@ -397,7 +447,7 @@ func init() {
 	}
 
 	getReplicasStatusesCmd := &cobra.Command{
-		Use:   "replicas [name]",
+		Use:   "replica [name]",
 		Short: "Get endpoint replica statuses",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -412,7 +462,7 @@ func init() {
 				return nil
 			}
 
-			printJSON(replicas)
+			fmt.Println(string(replicas))
 
 			return nil
 		},
@@ -541,6 +591,19 @@ func init() {
 	logsCmd.Flags().StringVar(&logsReplicaID, "replica", "", "Replica ID to filter logs (optional)")
 
 	logsStreamCmd.Flags().StringVar(&logsReplicaID, "replica", "", "Replica ID to filter logs stream (optional)")
+
+	getMetricsCmd.Flags().StringVar(&startTime, "start", "", "Metrics measurement start")
+	getMetricsCmd.Flags().StringVar(&stopTime, "stop", "", "Metrics measurement stop")
+
+	getMetricsCmd.MarkFlagRequired("start")
+	getMetricsCmd.MarkFlagRequired("stop")
+
+	getMetricCmd.Flags().StringVar(&startTime, "start", "", "Metric measurement start")
+	getMetricCmd.Flags().StringVar(&stopTime, "stop", "", "Metric measurement stop")
+	getMetricCmd.Flags().StringVar(&metricStep, "step", "", "Duration step ( '1m','5m', etc... ) )")
+
+	getMetricCmd.MarkFlagRequired("start")
+	getMetricCmd.MarkFlagRequired("stop")
 
 	endpointCmd.PersistentFlags().StringVar(&token, "token", "", "Authorization Bearer token (required)")
 	endpointCmd.PersistentFlags().StringVar(&namespace, "namespace", "", "Namespace (organization or user) (required)")

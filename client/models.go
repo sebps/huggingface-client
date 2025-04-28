@@ -303,3 +303,16 @@ type ExperimentalFeatures struct {
 type KvRouter struct {
 	Tag string `json:"tag"`
 }
+
+// MetricsRequest represents the request payload for fetching metrics
+type MetricsRequest struct {
+	Start time.Time `json:"start"`
+	Stop  time.Time `json:"stop"`
+}
+
+// MetricRequest represents the POST payload for fetching a specific metric
+type MetricRequest struct {
+	From uint32  `json:"from"`           // required: unix timestamp in seconds
+	To   uint32  `json:"to"`             // required: unix timestamp in seconds
+	Step *string `json:"step,omitempty"` // optional: resolution step (like "1m", "5m", etc.)
+}

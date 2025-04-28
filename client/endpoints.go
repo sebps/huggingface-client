@@ -151,23 +151,35 @@ func (c *Client) StreamEndpointLogs(namespace, name string, replicaID *string) (
 }
 
 // GetEndpointMetrics - Get all metrics for an endpoint (plural version)
-func (c *Client) GetEndpointMetrics(namespace, name string) ([]byte, error) {
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s/v2/endpoint/%s/%s/metrics", c.Host, namespace, name), nil)
+func (c *Client) GetEndpointMetrics(namespace, name string, metricsRequest MetricsRequest) ([]byte, error) {
+	rb, err := json.Marshal(metricsRequest)
 	if err != nil {
 		return nil, err
 	}
+
+	url := fmt.Sprintf("%s/v2/endpoint/%s/%s/metrics", c.Host, namespace, name)
+	req, err := http.NewRequest("POST", url, strings.NewReader(string(rb)))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
 
 	return c.doRequest(req, &c.Token)
 }
 
 // GetEndpointMetric - Get metrics from an endpoint
-func (c *Client) GetEndpointMetric(namespace, name, metricType string) ([]byte, error) {
-	url := fmt.Sprintf("%s/v2/endpoint/%s/%s/metrics/%s", c.Host, namespace, name, metricType)
-
-	req, err := http.NewRequest("GET", url, nil)
+func (c *Client) GetEndpointMetric(namespace, name, metricType string, metricRequest MetricRequest) ([]byte, error) {
+	rb, err := json.Marshal(metricRequest)
 	if err != nil {
 		return nil, err
 	}
+
+	url := fmt.Sprintf("%s/v2/endpoint/%s/%s/metrics/%s", c.Host, namespace, name, metricType)
+	req, err := http.NewRequest("POST", url, strings.NewReader(string(rb)))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
 
 	return c.doRequest(req, &c.Token)
 }
@@ -185,7 +197,7 @@ func (c *Client) PauseEndpoint(namespace, name string) error {
 
 // GetEndpointReplicasStatuses - Get status of all endpoint replicas
 func (c *Client) GetEndpointReplicasStatuses(namespace, name string) ([]byte, error) {
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s/v2/endpoint/%s/%s/replicas", c.Host, namespace, name), nil)
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s/v2/endpoint/%s/%s/replica", c.Host, namespace, name), nil)
 	if err != nil {
 		return nil, err
 	}
