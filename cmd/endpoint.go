@@ -370,8 +370,6 @@ func init() {
 
 			fmt.Println(string(metricsData))
 
-			printJSON(metricsData)
-
 			return nil
 		},
 	}
